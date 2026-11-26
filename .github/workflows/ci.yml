@@ -1,0 +1,55 @@
+name: FinPath CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  backend-ci:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: finpath
+          POSTGRES_PASSWORD: finpath_dev_password
+          POSTGRES_DB: finpath
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd="pg_isready -U finpath -d finpath"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          uv pip install --system -e ./packages/finpath_core -e "./backend[dev]"
+
+      - name: Ruff lint
+        run: ruff check packages backend
+
+      - name: Mypy typecheck
+        run: mypy packages/finpath_core/finpath_core backend/app
+
+      - name: Run migrations
+        env:
+          MIGRATION_DATABASE_URL: postgresql+psycopg://finpath:finpath_dev_password@localhost:5432/finpath
+          DATABASE_URL: postgresql+asyncpg://finpath_app:finpath_app_dev_password@localhost:5432/finpath
+        run: alembic -c backend/alembic.ini upgrade head
+
+      - name: Run pytest (including RLS isolation tests)
+        env:
+          ENV: test
+          MIGRATION_DATABASE_URL: postgresql+psycopg://finpath:finpath_dev_password@localhost:5432/finpath
+          DATABASE_URL: postgresql+asyncpg://finpath_app:finpath_app_dev_password@localhost:5432/finpath
+          JWT_SECRET_KEY: ci-only-secret-key-minimum-32-bytes-long
+        run: pytest backend/tests -v
