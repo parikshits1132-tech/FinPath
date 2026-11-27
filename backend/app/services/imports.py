@@ -32,6 +32,7 @@ from app.db.models import (
     ImportBatch,
     ImportRowError,
 )
+from app.services.categorisation import classify_transaction, load_rules
 from app.services.storage import ObjectStorage
 
 PARSER_REGISTRY: dict[str, Any] = {
@@ -194,6 +195,7 @@ async def process_import(
     rows = _build_rows(parsed, user_id=user_id, account_id=account_id)
     fingerprints = [str(row["fingerprint"]) for row in rows]
     existing = await _existing_fingerprints(session, user_id, fingerprints)
+    rules = await load_rules(session, user_id)
 
     inserted = 0
     duplicates = 0
@@ -205,6 +207,12 @@ async def process_import(
             continue
         existing.add(fingerprint)
         inserted += 1
+        classification = classify_transaction(str(row["description_clean"]), rules)
+        category_id = (
+            uuid.UUID(classification.category_id)
+            if classification.category_id is not None
+            else None
+        )
         session.add(
             FinancialTransaction(
                 user_id=user_id,
@@ -216,9 +224,10 @@ async def process_import(
                 description_raw=str(row["description_raw"]),
                 description_clean=str(row["description_clean"]),
                 reference_number=str(row["reference_number"]) or None,
+                category_id=category_id,
+                categorisation_source=classification.categorisation_source,
+                is_transfer=classification.is_transfer,
                 fingerprint=fingerprint,
-                categorisation_source="uncategorised",
-                is_transfer=False,
             )
         )
 
@@ -398,6 +407,13 @@ async def resolve_row_error(
             description_clean=description_clean,
             reference_number=reference_text,
         )
+        rules = await load_rules(session, user_id)
+        classification = classify_transaction(description_clean, rules)
+        category_id = (
+            UUID(classification.category_id)
+            if classification.category_id is not None
+            else None
+        )
         session.add(
             FinancialTransaction(
                 user_id=user_id,
@@ -409,9 +425,10 @@ async def resolve_row_error(
                 description_raw=description_raw,
                 description_clean=description_clean,
                 reference_number=reference_text,
+                category_id=category_id,
+                categorisation_source=classification.categorisation_source,
+                is_transfer=classification.is_transfer,
                 fingerprint=fingerprint,
-                categorisation_source="uncategorised",
-                is_transfer=False,
             )
         )
         error.resolution_status = "corrected"
