@@ -1,6 +1,6 @@
-# Run backend lint, typecheck, and pytest inside Docker Compose
+# Run backend lint, typecheck, and pytest inside Docker Compose (matches CI)
 $ErrorActionPreference = "Stop"
-docker compose up -d postgres
-docker compose run --rm backend ruff check /app/backend /app/packages/finpath_core
-docker compose run --rm backend mypy /app/backend/app /app/packages/finpath_core/finpath_core
-docker compose run --rm backend pytest /app/backend/tests -v
+docker compose up -d postgres objectstore
+docker compose run --rm -w /app backend ruff check backend packages
+docker compose run --rm -w /app backend mypy --config-file backend/pyproject.toml packages/finpath_core/finpath_core backend/app
+docker compose run --rm -w /app -e ENV=test -e STORAGE_BACKEND=memory backend pytest backend/tests -v

@@ -17,6 +17,7 @@ from alembic import command
 from app.core.config import get_settings
 from app.db.session import get_engine, get_session_factory, set_rls_user_id
 from app.main import app
+from app.services.storage import reset_storage_cache
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -43,6 +44,7 @@ async def reset_test_data() -> AsyncIterator[None]:
             conn.execute(text("DELETE FROM transaction_categories WHERE is_system = false"))
     finally:
         sync_engine.dispose()
+        reset_storage_cache()
 
 
 @pytest.fixture

@@ -21,6 +21,32 @@ services:
         limits:
           memory: 512M
 
+  objectstore:
+    # MinIO's public images/binaries were withdrawn in 2026, so local development
+    # runs RustFS: an Apache-2.0, S3-compatible drop-in with the same API surface.
+    image: rustfs/rustfs:latest
+    container_name: finpath-objectstore
+    environment:
+      RUSTFS_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      RUSTFS_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      RUSTFS_VOLUMES: /data
+      RUSTFS_OBS_LOG_DIRECTORY: /logs
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ./data/objectstore:/data
+      - ./data/objectstore-logs:/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
   backend:
     build:
       context: .
@@ -34,13 +60,22 @@ services:
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
       REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-auto}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://objectstore:9000}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-finpath}
+      MAX_IMPORT_FILE_BYTES: ${MAX_IMPORT_FILE_BYTES:-10485760}
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app/backend
       - ./packages/finpath_core:/app/packages/finpath_core
+      - ./data:/app/data
     depends_on:
       postgres:
+        condition: service_healthy
+      objectstore:
         condition: service_healthy
     deploy:
       resources:

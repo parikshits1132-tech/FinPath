@@ -7,7 +7,7 @@ if (-not (Test-Path ".env")) {
 }
 
 docker compose build backend
-docker compose up -d postgres
+docker compose up -d postgres objectstore
 Write-Host "Waiting for Postgres and running Alembic migrations..."
 docker compose run --rm backend alembic -c /app/backend/alembic.ini upgrade head
 Write-Host "Setup complete. Run .\scripts\dev.ps1 to start the API."

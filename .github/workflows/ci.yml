@@ -51,7 +51,7 @@ jobs:
         run: ruff check packages backend
 
       - name: Mypy typecheck
-        run: mypy packages/finpath_core/finpath_core backend/app
+        run: mypy --config-file backend/pyproject.toml packages/finpath_core/finpath_core backend/app
 
       - name: Run migrations
         env:
@@ -65,4 +65,5 @@ jobs:
           MIGRATION_DATABASE_URL: postgresql+psycopg://finpath:finpath_dev_password@localhost:5432/finpath
           DATABASE_URL: postgresql+asyncpg://finpath_app:finpath_app_dev_password@localhost:5432/finpath
           JWT_SECRET_KEY: ci-only-secret-key-minimum-32-bytes-long
+          STORAGE_BACKEND: memory
         run: pytest backend/tests -v

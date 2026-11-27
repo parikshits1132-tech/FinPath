@@ -169,7 +169,7 @@ class CategorisationRule(Base):
 
 
 class ImportBatch(Base):
-    """Metadata and MinIO lineage for each uploaded statement import."""
+    """Metadata and object-storage lineage for each uploaded statement import."""
 
     __tablename__ = "import_batches"
 
